@@ -3,6 +3,7 @@
 #include <math.h>
 #include <limits.h>
 #include <time.h>
+#include <omp.h>
 
 #define INDEX(x, y, X_DIM) ((y) * X_DIM + (x))
 
@@ -135,6 +136,34 @@ void initialize_graph(double *D, int *P, double (*W)[4], int V, int X_DIM, int Y
     fclose(fp);
 }
 
+int write_path_to_file(const int DESTINATIONS[10][2], int SOURCE_X, int SOURCE_Y, int X_DIM, int Y_DIM, int *P, int USE_RANDOM_WEIGHTS)
+{
+    for (int i = 0; i < 10; i++)
+    {
+        int dest_x = DESTINATIONS[i][0];
+        int dest_y = DESTINATIONS[i][1];
+        char filename[100];
+
+        sprintf(filename, "shortest_paths/2d_parallel/path_from_(%d,%d)_to_(%d,%d)_1_parallel.txt", SOURCE_X, SOURCE_Y, dest_x, dest_y);
+        if (USE_RANDOM_WEIGHTS)
+            sprintf(filename, "shortest_paths/2d_parallel/path_from_(%d,%d)_to_(%d,%d)_random_parallel.txt", SOURCE_X, SOURCE_Y, dest_x, dest_y);
+
+        FILE *fp = fopen(filename, "w");
+        if (!fp)
+        {
+            perror("fopen");
+            return 1;
+        }
+        int index = INDEX(dest_x, dest_y, X_DIM);
+        while (index != -1)
+        {
+            fprintf(fp, "(%d, %d)\n", GET_X_COORD(index, X_DIM), GET_Y_COORD(index, X_DIM));
+            index = P[index];
+        }
+        fclose(fp);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     const int X_DIM = 1000;
@@ -142,9 +171,9 @@ int main(int argc, char *argv[])
     int V = X_DIM * Y_DIM;
     const int USE_RANDOM_WEIGHTS = 1;
 
-    char *filename = "graph2d_1000x1000_1.txt";
+    char *filename = "graphs/graph2d_1000x1000_1.txt";
     if (USE_RANDOM_WEIGHTS)
-        filename = "graph2d_1000x1000_random.txt";
+        filename = "graphs/graph2d_1000x1000_random.txt";
 
     const int DESTINATIONS[10][2] = {
         {10, 10},
@@ -189,18 +218,18 @@ int main(int argc, char *argv[])
     struct timespec start, end;
     double elapsed;
 
-    printf("Starting Bellman-Ford algorithm...\n");
+    printf("\n\nStarting Bellman-Ford algorithm...\n");
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     int n_iteration = run_bellman_ford(D, P, W, V, X_DIM, Y_DIM);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("Execution time: %f seconds\n", elapsed);
 
     if (n_iteration != -1)
     {
-        // Draw table to show the shortest path distance to above destinations
+        printf("Number of threads: %d\n", omp_get_max_threads());
+        printf("Execution time: %f seconds\n", elapsed);
         printf("Shortest path distance from (%d, %d) to the following destinations:\n", SOURCE_X, SOURCE_Y);
         for (int i = 0; i < 10; i++)
         {
@@ -208,33 +237,7 @@ int main(int argc, char *argv[])
             int dest_y = DESTINATIONS[i][1];
             printf("(%d, %d): %.1f\n", dest_x, dest_y, D[INDEX(dest_x, dest_y, X_DIM)]);
         }
-
-        // Write path from source to each destination to separate file in reverse order from source to destination
-
-        for (int i = 0; i < 10; i++)
-        {
-            int dest_x = DESTINATIONS[i][0];
-            int dest_y = DESTINATIONS[i][1];
-            char filename[50];
-
-            sprintf(filename, "path_from_(%d,%d)_to_(%d,%d)_1_parallel.txt", SOURCE_X, SOURCE_Y, dest_x, dest_y);
-            if (USE_RANDOM_WEIGHTS)
-                sprintf(filename, "path_from_(%d,%d)_to_(%d,%d)_random_parallel.txt", SOURCE_X, SOURCE_Y, dest_x, dest_y);
-
-            FILE *fp = fopen(filename, "w");
-            if (!fp)
-            {
-                perror("fopen");
-                return 1;
-            }
-            int index = INDEX(dest_x, dest_y, X_DIM);
-            while (index != -1)
-            {
-                fprintf(fp, "(%d, %d)\n", GET_X_COORD(index, X_DIM), GET_Y_COORD(index, X_DIM));
-                index = P[index];
-            }
-            fclose(fp);
-        }
+        write_path_to_file(DESTINATIONS, SOURCE_X, SOURCE_Y, X_DIM, Y_DIM, P, USE_RANDOM_WEIGHTS);
     }
 
     free(D);

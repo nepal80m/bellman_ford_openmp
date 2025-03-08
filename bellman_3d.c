@@ -3,6 +3,7 @@
 #include <math.h>
 #include <limits.h>
 #include <time.h>
+#include <omp.h>
 
 #define INDEX(x, y, z, X_DIM, Y_DIM) ((z) * (X_DIM * Y_DIM) + (y) * X_DIM + (x))
 
@@ -149,7 +150,34 @@ void initialize_graph(double *D, int *P, double (*W)[6], int V, int X_DIM, int Y
     }
     fclose(fp);
 }
+int write_path_to_file(const int DESTINATIONS[10][3], int SOURCE_X, int SOURCE_Y, int SOURCE_Z, int *P, int USE_RANDOM_WEIGHTS, int X_DIM, int Y_DIM)
+{
+    for (int i = 0; i < 10; i++)
+    {
+        int dest_x = DESTINATIONS[i][0];
+        int dest_y = DESTINATIONS[i][1];
+        int dest_z = DESTINATIONS[i][2];
+        char filename[100];
 
+        sprintf(filename, "shortest_paths/3d/path_from_(%d,%d,%d)_to_(%d,%d,%d)_1.txt", SOURCE_X, SOURCE_Y, SOURCE_Z, dest_x, dest_y, dest_z);
+        if (USE_RANDOM_WEIGHTS)
+            sprintf(filename, "shortest_paths/3d/path_from_(%d,%d,%d)_to_(%d,%d,%d)_random.txt", SOURCE_X, SOURCE_Y, SOURCE_Z, dest_x, dest_y, dest_z);
+
+        FILE *fp = fopen(filename, "w");
+        if (!fp)
+        {
+            perror("fopen");
+            return 1;
+        }
+        int index = INDEX(dest_x, dest_y, dest_z, X_DIM, Y_DIM);
+        while (index != -1)
+        {
+            fprintf(fp, "(%d, %d, %d)\n", GET_X_COORD(index, X_DIM), GET_Y_COORD(index, X_DIM, Y_DIM), GET_Z_COORD(index, X_DIM, Y_DIM));
+            index = P[index];
+        }
+        fclose(fp);
+    }
+}
 int main(int argc, char *argv[])
 {
     const int X_DIM = 50;
@@ -158,9 +186,9 @@ int main(int argc, char *argv[])
     int V = X_DIM * Y_DIM * Z_DIM;
     const int USE_RANDOM_WEIGHTS = 1;
 
-    char *filename = "graph3d_50x50x50_1.txt";
+    char *filename = "graphs/graph3d_50x50x50_1.txt";
     if (USE_RANDOM_WEIGHTS)
-        filename = "graph3d_50x50x50_random.txt";
+        filename = "graphs/graph3d_50x50x50_random.txt";
 
     int DESTINATIONS[10][3] = {
         {1, 1, 1},
@@ -208,19 +236,19 @@ int main(int argc, char *argv[])
     struct timespec start, end;
     double elapsed;
 
-    printf("Starting Bellman-Ford algorithm...\n");
+    printf("\n\nStarting Bellman-Ford algorithm...\n");
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     int n_iteration = run_bellman_ford(D, P, W, V, X_DIM, Y_DIM, Z_DIM);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("Execution time: %f seconds\n", elapsed);
 
     if (n_iteration != -1)
     {
-
-        // Draw table to show the shortest path distance to above destinations
+        printf("Converged after %d iterations\n", n_iteration);
+        printf("Number of threads: Serial\n");
+        printf("Execution time: %f seconds\n", elapsed);
         printf("Shortest path distance from (%d, %d, %d) to the following destinations:\n", SOURCE_X, SOURCE_Y, SOURCE_Z);
         for (int i = 0; i < 10; i++)
         {
@@ -229,32 +257,7 @@ int main(int argc, char *argv[])
             int dest_z = DESTINATIONS[i][2];
             printf("(%d, %d, %d): %.1f\n", dest_x, dest_y, dest_z, D[INDEX(dest_x, dest_y, dest_z, X_DIM, Y_DIM)]);
         }
-
-        for (int i = 0; i < 10; i++)
-        {
-            int dest_x = DESTINATIONS[i][0];
-            int dest_y = DESTINATIONS[i][1];
-            int dest_z = DESTINATIONS[i][2];
-            char filename[50];
-
-            sprintf(filename, "path_from_(%d,%d,%d)_to_(%d,%d,%d)_1.txt", SOURCE_X, SOURCE_Y, SOURCE_Z, dest_x, dest_y, dest_z);
-            if (USE_RANDOM_WEIGHTS)
-                sprintf(filename, "path_from_(%d,%d,%d)_to_(%d,%d,%d)_random.txt", SOURCE_X, SOURCE_Y, SOURCE_Z, dest_x, dest_y, dest_z);
-
-            FILE *fp = fopen(filename, "w");
-            if (!fp)
-            {
-                perror("fopen");
-                return 1;
-            }
-            int index = INDEX(dest_x, dest_y, dest_z, X_DIM, Y_DIM);
-            while (index != -1)
-            {
-                fprintf(fp, "(%d, %d, %d)\n", GET_X_COORD(index, X_DIM), GET_Y_COORD(index, X_DIM, Y_DIM), GET_Z_COORD(index, X_DIM, Y_DIM));
-                index = P[index];
-            }
-            fclose(fp);
-        }
+        write_path_to_file(DESTINATIONS, SOURCE_X, SOURCE_Y, SOURCE_Z, P, USE_RANDOM_WEIGHTS, X_DIM, Y_DIM);
     }
 
     free(D);

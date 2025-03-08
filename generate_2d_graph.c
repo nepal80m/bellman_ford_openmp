@@ -45,9 +45,9 @@ int main(int argc, char *argv[])
 
     char out_filename[28];
     if (USE_RANDOM_WEIGHTS)
-        sprintf(out_filename, "graph2d_%dx%d_random.txt", X_DIM, Y_DIM);
+        sprintf(out_filename, "graphs/graph2d_%dx%d_random.txt", X_DIM, Y_DIM);
     else
-        sprintf(out_filename, "graph2d_%dx%d_%d.txt", X_DIM, Y_DIM, CONSTANT_WEIGHT);
+        sprintf(out_filename, "graphs/graph2d_%dx%d_%d.txt", X_DIM, Y_DIM, CONSTANT_WEIGHT);
 
     FILE *fp = fopen(out_filename, "w");
     if (!fp)
